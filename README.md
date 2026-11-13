@@ -2,6 +2,8 @@
 
 เว็บแอปแสดงสถานะการ์ดจอ NVIDIA แบบเรียลไทม์ สร้างด้วย FastAPI ไม่ต้อง build frontend แยก (ใช้ Jinja2 template + Tailwind จาก CDN)
 
+![หน้าจอ GPU Real-time Monitor](docs/screenshot.png)
+
 ## คุณสมบัติ
 - แสดงข้อมูล GPU ทุกใบ: ชื่อ, อุณหภูมิ, % การใช้งาน, หน่วยความจำที่ใช้/ทั้งหมด
 - **แสดง process ที่ใช้ GPU แต่ละใบ**: PID, ผู้ใช้ (user) ที่เป็นเจ้าของ, คำสั่ง (ตัดที่ 80 ตัวอักษร) และ VRAM ที่ใช้ เรียงจากใช้มากไปน้อย — เหมาะกับเครื่องที่มีหลายคนใช้ร่วมกัน
@@ -106,6 +108,7 @@ sudo loginctl enable-linger $USER
 | `run.sh` | สคริปต์รันด้วย venv ที่พอร์ต 8007 |
 | `main.py` | เวอร์ชันเดิมแบบไฟล์เดียว (ฝัง HTML ในไฟล์, ไม่มีรายการ process, บังคับให้รันใน venv) เก็บไว้อ้างอิง — ใช้งานจริงให้รัน `app.py` |
 | `requirements.txt` | fastapi, uvicorn[standard], Jinja2, GPUtil |
+| `docs/screenshot.png` | ภาพหน้าจอสำหรับ README |
 
 ---
 
