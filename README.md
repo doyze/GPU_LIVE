@@ -1,82 +1,114 @@
 # GPU Real-time Monitor (FastAPI)
 
-โปรเจกต์นี้เป็นเว็บแอปพลิเคชันสำหรับแสดงข้อมูลการทำงานของ GPU แบบเรียลไทม์ สร้างขึ้นด้วย FastAPI
+เว็บแอปแสดงสถานะการ์ดจอ NVIDIA แบบเรียลไทม์ สร้างด้วย FastAPI ไม่ต้อง build frontend แยก (ใช้ Jinja2 template + Tailwind จาก CDN)
 
 ## คุณสมบัติ
-- แสดงข้อมูลการ์ดจอแบบเรียลไทม์ (อุณหภูมิ, การใช้งาน, การใช้หน่วยความจำ)
-- อัปเดตข้อมูลอัตโนมัติทุกๆ 2 วินาที
-- หน้าเว็บแสดงผลสวยงามและเข้าใจง่าย
-- มีแถบสีแสดงระดับอุณหภูมิและการใช้งาน
+- แสดงข้อมูล GPU ทุกใบ: ชื่อ, อุณหภูมิ, % การใช้งาน, หน่วยความจำที่ใช้/ทั้งหมด
+- **แสดง process ที่ใช้ GPU แต่ละใบ**: PID, ผู้ใช้ (user) ที่เป็นเจ้าของ, คำสั่ง (ตัดที่ 80 ตัวอักษร) และ VRAM ที่ใช้ เรียงจากใช้มากไปน้อย — เหมาะกับเครื่องที่มีหลายคนใช้ร่วมกัน
+- อัปเดตอัตโนมัติทุก 2 วินาที (ดึงจาก `/api/gpu`)
+- แถบสีแสดงระดับอุณหภูมิและการใช้งาน
+- มี JSON API ให้ระบบอื่นเรียกใช้
 
 ---
 
-## สิ่งที่ต้องมี (Prerequisites)
-- **Python 3.8 ขึ้นไป**
-- **pip** (มักจะมาพร้อมกับ Python)
-- การ์ดจอ NVIDIA (เนื่องจากใช้ไลบรารี `GPUtil` ซึ่งทำงานได้ดีที่สุดกับไดรเวอร์ NVIDIA)
+## สิ่งที่ต้องมี
+- Linux + การ์ดจอ NVIDIA พร้อมไดรเวอร์ และคำสั่ง `nvidia-smi`
+- Python 3.8 ขึ้นไป
+- รายการ process อ่านข้อมูลจาก `/proc` จึงใช้ได้บน Linux เท่านั้น (บนระบบอื่นหน้าเว็บยังแสดงข้อมูล GPU ได้ แต่รายการ process จะว่าง)
 
 ---
 
-## วิธีการติดตั้งและใช้งาน
+## ติดตั้ง
 
-ทำตามขั้นตอนต่อไปนี้เพื่อรันโปรเจกต์บนเครื่องของคุณ
+```bash
+git clone https://github.com/doyze/GPU_monitor_no_frontend.git
+cd GPU_monitor_no_frontend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-### 1. สร้างและเปิดใช้งาน Virtual Environment
+## รัน
 
-Virtual Environment ช่วยให้เราสามารถแยกสภาพแวดล้อมของโปรเจกต์นี้ออกจากโปรเจกต์อื่นๆ เพื่อป้องกันปัญหาเรื่องเวอร์ชันของไลบรารีที่ขัดแย้งกัน
+```bash
+./run.sh
+# หรือ
+venv/bin/uvicorn app:app --host 0.0.0.0 --port 8007
+```
 
-**เปิด Command Prompt หรือ Terminal แล้วทำตามขั้นตอนต่อไปนี้:**
+เปิดเบราว์เซอร์ที่ `http://<ip-ของเครื่อง>:8007` กด `Ctrl + C` เพื่อหยุด
 
-- **สร้างโฟลเดอร์สำหรับ Virtual Environment:**
-  ```bash
-  python -m venv venv
-  ```
-  คำสั่งนี้จะสร้างโฟลเดอร์ชื่อ `venv` ขึ้นมาในโปรเจกต์ของคุณ
+ระหว่างพัฒนาใส่ `--reload` เพิ่มได้ เพื่อให้เซิร์ฟเวอร์รีสตาร์ทเองเมื่อแก้โค้ด
 
-- **เปิดใช้งาน (Activate) Virtual Environment:**
+### รันเป็น service ถาวร (systemd แบบ user)
 
-  - **สำหรับ Windows:**
-    ```bash
-    .\venv\Scripts\activate
-    ```
-    หลังจากรันคำสั่งนี้ คุณจะเห็น `(venv)` นำหน้าชื่อ path ใน Command Prompt
+สร้างไฟล์ `~/.config/systemd/user/gpu-monitor.service` (เปลี่ยน path ให้ตรงกับที่ clone ไว้):
 
-  - **สำหรับ macOS และ Linux:**
-    ```bash
-    source venv/bin/activate
-    ```
-    หลังจากรันคำสั่งนี้ คุณจะเห็น `(venv)` นำหน้าชื่อผู้ใช้ใน Terminal
+```ini
+[Unit]
+Description=GPU Real-time Monitor (FastAPI :8007)
+After=network-online.target
 
-### 2. ติดตั้งไลบรารีที่จำเป็น
+[Service]
+WorkingDirectory=/path/to/GPU_monitor_no_frontend
+ExecStart=/path/to/GPU_monitor_no_frontend/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8007
+Restart=always
+RestartSec=3
 
-เมื่อ Virtual Environment ทำงานแล้ว ให้ติดตั้งไลบรารีทั้งหมดที่โปรเจกต์ต้องการจากไฟล์ `requirements.txt`
+[Install]
+WantedBy=default.target
+```
 
-- **รันคำสั่งติดตั้ง:**
-  ```bash
-  pip install -r requirements.txt
-  ```
-  คำสั่งนี้จะดาวน์โหลดและติดตั้ง FastAPI, Uvicorn, GPUtil และไลบรารีอื่นๆ ที่จำเป็นโดยอัตโนมัติ
-
-### 3. รันแอปพลิเคชัน
-
-เมื่อติดตั้งไลบรารีเสร็จเรียบร้อยแล้ว คุณก็พร้อมที่จะรันแอปพลิเคชัน
-
-- **รันเซิร์ฟเวอร์ด้วย Uvicorn:**
-  ```bash
-  uvicorn app:app --reload --host 0.0.0.0 --port 8007
-  ```
-  - `app:app`: หมายถึงให้รันอ็อบเจกต์ชื่อ `app` ที่อยู่ในไฟล์ `app.py`
-  - `--reload`: ทำให้เซิร์ฟเวอร์รีสตาร์ทอัตโนมัติทุกครั้งที่มีการแก้ไขโค้ด
-  - `--port 8007`: กำหนดให้เซิร์ฟเวอร์ทำงานที่พอร์ต 8007
-
-### 4. เปิดดูผลลัพธ์
-
-เปิดเว็บเบราว์เซอร์ (เช่น Chrome, Firefox) แล้วเข้าไปที่ URL ต่อไปนี้:
-
-[**http://127.0.0.1:8007**] หรือ (http://your_ip_address:8007)
-
-คุณจะเห็นหน้าจอ Monitor GPU แสดงข้อมูลแบบเรียลไทม์
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now gpu-monitor
+systemctl --user status gpu-monitor
+# ให้ service ทำงานต่อแม้ไม่ได้ login (ต้องใช้สิทธิ์ admin ครั้งเดียว)
+sudo loginctl enable-linger $USER
+```
 
 ---
 
-หากต้องการหยุดการทำงานของเซิร์ฟเวอร์ ให้กลับไปที่หน้าต่าง Command Prompt หรือ Terminal แล้วกด `Ctrl + C`
+## API
+
+`GET /api/gpu` — คืนค่ารายการ GPU เป็น JSON
+
+```json
+[
+  {
+    "id": 0,
+    "name": "NVIDIA RTX 4500 Ada Generation",
+    "load_percent": "35.00",
+    "load_raw": 35.0,
+    "memory_used": "18230.00",
+    "memory_total": "24570.00",
+    "memory_util_percent": "74.20",
+    "memory_util_raw": 74.2,
+    "temperature": "61",
+    "temperature_raw": 61.0,
+    "processes": [
+      {"pid": 12345, "user": "alice", "command": "python train.py --epochs 10", "memory_mb": 17800}
+    ]
+  }
+]
+```
+
+ถ้าอ่านข้อมูล GPU ไม่ได้ จะคืน `[{"error": "<ข้อความ>"}]`
+
+---
+
+## โครงสร้างไฟล์
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `app.py` | แอปหลัก: route `/` (หน้าเว็บ) และ `/api/gpu` (JSON) รวมการดึงรายการ process |
+| `templates/index.html` | หน้าเว็บ (Tailwind CDN) ดึง `/api/gpu` ทุก 2 วินาที |
+| `run.sh` | สคริปต์รันด้วย venv ที่พอร์ต 8007 |
+| `main.py` | เวอร์ชันเดิมแบบไฟล์เดียว (ฝัง HTML ในไฟล์, ไม่มีรายการ process, บังคับให้รันใน venv) เก็บไว้อ้างอิง — ใช้งานจริงให้รัน `app.py` |
+| `requirements.txt` | fastapi, uvicorn[standard], Jinja2, GPUtil |
+
+---
+
+## ข้อควรระวัง
+- แอปนี้ไม่มีระบบ login และรัน `--host 0.0.0.0` ทุกคนที่เข้าถึงพอร์ตได้จะเห็นชื่อผู้ใช้และคำสั่งของ process บน GPU — ควรเปิดเฉพาะในเครือข่ายภายใน หรือกั้นด้วย firewall/reverse proxy
+- ผู้ใช้ที่รันแอปต้องเรียก `nvidia-smi` ได้ และอ่าน `/proc/<pid>` ของ process อื่นได้ (ค่าปกติของ Linux ส่วนใหญ่อนุญาต)
